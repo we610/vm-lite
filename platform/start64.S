@@ -11,12 +11,14 @@ _start:
     str     x2, [x0], #8
     b       1b
 2:
-    bl      mmu_init_tables      /* 只建表，不开 MMU */
+    bl      mmu_init_tables
+
     ldr     x0, =vectors
-    msr     vbar_el1, x0         /* ★ 装向量表 */
+    msr     vbar_el1, x0
     isb
-    mov     w0, #'V'             /* V = VBAR 已装 */
-    bl      uart_putc
+
+    /* bl mmu_enable */           /* 打 m n o */
+
     bl      kernel_main
 3:  wfi
     b       3b

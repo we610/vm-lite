@@ -19,48 +19,62 @@ extern unsigned long __el0_stack_top;
 #define EC_IABT_LOW 0x20
 
 /* ============ 最简 MMU：identity map ============ */
+static void put64(unsigned long v)
+{
+    int i;
+    uart_puts("0x");
+    for (i = 60; i >= 0; i -= 4) {
+        unsigned n = (v >> i) & 0xf;
+        uart_putc(n < 10 ? '0' + n : 'a' + (n - 10));
+    }
+}
+
 void mmu_init_tables(void)
 {
     volatile unsigned long *l1 = (volatile unsigned long *)__ttbr0_l1;
     int i;
-    unsigned long mair, tcr;
-
-    uart_putc('A');
+    unsigned long mair, tcr, sctlr, rb;
 
     for (i = 0; i < 512; i++) l1[i] = 0;
-    uart_putc('B');
 
-    l1[0] = 0x00000000UL | 1UL | (1UL<<2) | (0UL<<6) | (3UL<<8) | (1UL<<10);
-    uart_putc('C');
+    /* L1[0] 0x0-0x3FFFFFFF : Device, EL1 RW */
+    l1[0] = 0x00000000UL | (1UL << 10) | (0UL << 8)
+          | (0UL << 6) | (1UL << 2) | (1UL << 0);
 
-    /* L1[1]: RAM, Normal, EL1 RW / EL0 RW, EL0 可执行
-       UXN(bit54)=0  PXN(bit53)=0 → 这两位不设即为 0，EL0 可取指 */
-    l1[1] = 0x40000000UL
-          | (1UL << 0)          /* Valid */
-          | (0UL << 1)          /* Table/Block = Block */
-          | (0UL << 2)          /* AttrIndx=0 Normal */
-          | (1UL << 5)          /* NS */
-          | (1UL << 6)          /* AP=01: EL1 RW, EL0 RW */
-          | (0UL << 53)         /* PXN=0  允许 EL1 执行 */
-          | (0UL << 54)         /* UXN=0  允许 EL0 执行 */
-          | (3UL << 8)          /* SH */
-          | (1UL << 10);        /* AF */
-    uart_putc('D');
+    /* L1[1] 0x40000000-0x7FFFFFFF : Normal, EL1 RW + EL0 RW, 可执行 */
+    l1[1] = 0x40000000UL | (1UL << 10) | (3UL << 8)
+          | (1UL << 6) | (0UL << 2) | (1UL << 0);
 
-    mair = 0xFFUL | (0x04UL << 8);
-    __asm__ volatile("msr mair_el1, %0" :: "r"(mair));
-    uart_putc('E');
+    mair = 0xFFUL | (0x00UL << 8);
+    __asm__ volatile("msr MAIR_EL1, %0" :: "r"(mair));
 
-    tcr = (25UL << 0) | (0UL << 14);
-    __asm__ volatile("msr tcr_el1, %0" :: "r"(tcr));
-    uart_putc('F');
+    tcr = (25UL << 0)      /* T0SZ=25 */
+        | (0UL  << 14)     /* TG0 = 00 -> 4KB */
+        | (25UL << 16)     /* T1SZ=25 */
+        | (1UL  << 30)     /* ★ TG1 = 01 -> 4KB（之前错写成 2） */
+        | (2UL  << 32);    /* IPS = 40bit */
+    __asm__ volatile("msr TCR_EL1, %0" :: "r"(tcr));
 
-    __asm__ volatile("msr ttbr0_el1, %0" :: "r"((unsigned long)l1));
-    uart_putc('G');
-
+    __asm__ volatile("msr TTBR0_EL1, %0" :: "r"((unsigned long)l1));
+    __asm__ volatile("msr TTBR1_EL1, %0" :: "r"((unsigned long)l1));
     __asm__ volatile("dsb sy" ::: "memory");
-    uart_puts("\n[mmu] 配置完成\n");
+
+    uart_puts("\n[mmu] -- 寄存器实况 --\n");
+    uart_puts("  L1[1]="); put64(l1[1]); uart_putc('\n');
+    __asm__ volatile("mrs %0, MAIR_EL1" : "=r"(rb));
+    uart_puts("  MAIR ="); put64(rb); uart_putc('\n');
+    __asm__ volatile("mrs %0, TCR_EL1" : "=r"(rb));
+    uart_puts("  TCR  ="); put64(rb); uart_putc('\n');
+    __asm__ volatile("mrs %0, SCTLR_EL1" : "=r"(sctlr));
+    uart_puts("  SCTLR="); put64(sctlr); uart_putc('\n');
+    uart_puts("  (L1[1]应为40000741, TCR bit31:30应为01)\n");
+    __asm__ volatile("mrs %0, TTBR0_EL1" : "=r"(rb));
+    uart_puts("  TTBR0="); put64(rb); uart_putc('\n');
+    __asm__ volatile("mrs %0, TTBR1_EL1" : "=r"(rb));
+    uart_puts("  TTBR1="); put64(rb); uart_putc('\n');
+    uart_puts("  (应与 __ttbr0_l1 地址 0x40003000 相同)\n");
 }
+
 
 /* ============ EL0 同步异常 ============ */
 void el0_sync_handler(unsigned long *tf)
@@ -95,9 +109,26 @@ void el0_sync_handler(unsigned long *tf)
     tf[TF_SPSR] = 0x3c5;
 }
 
+static void put_hex(unsigned long v)
+{
+    int i;
+    uart_puts("0x");
+    for (i = 60; i >= 0; i -= 4) {
+        unsigned n = (v >> i) & 0xf;
+        uart_putc(n < 10 ? '0' + n : 'a' + n - 10);
+    }
+}
+
 void el1_panic_c(void)
 {
-    uart_puts("\n[!!] EL1 意外异常\n");
+    unsigned long esr, elr, far;
+    __asm__ volatile("mrs %0, ESR_EL1" : "=r"(esr));
+    __asm__ volatile("mrs %0, ELR_EL1" : "=r"(elr));
+    __asm__ volatile("mrs %0, FAR_EL1" : "=r"(far));
+    uart_puts("\n[!!] EL1 PANIC\n");
+    uart_puts("  ESR="); put_hex(esr); uart_putc('\n');
+    uart_puts("  ELR="); put_hex(elr); uart_putc('\n');
+    uart_puts("  FAR="); put_hex(far); uart_putc('\n');
     for (;;) __asm__ volatile("wfi");
 }
 
