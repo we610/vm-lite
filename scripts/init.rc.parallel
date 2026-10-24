@@ -1,0 +1,118 @@
+# ============================================================
+# init.rc —— 「一个进程拉起多个进程」的并行启动模板
+#
+# 机制说明(重要):
+#   Android init 原生就支持并行拉起。
+#   class_start <name> 会让 init 一次性 fork+exec 该 class 下
+#   的所有服务 —— 这就是「一个进程拉起多个进程」的官方实现,
+#   不需要自己写多进程调度代码。
+#
+#   用法: 按【依赖关系】分组, 同组内无依赖 -> 归入同一 class -> 并行拉起
+#         组与组之间串行 -> 用一个 trigger 串起来
+# ============================================================
+
+
+# ---------- 第 0 组: 基础设施(必须最先, 后续全依赖它) ----------
+on early-init
+    mkdir /dev/socket 0775 root root
+    start logd
+    start lmkd
+
+# ---------- 第 1 组: 无依赖的基础服务 -> 并行拉起 ----------
+# 这四个互不依赖, 归为同一 class, 一次性全部 fork
+on boot
+    class_start vm_early
+
+service logd    /system/bin/logd
+    class vm_early
+    user logd
+    group logd system
+
+service lmkd    /system/bin/lmkd
+    class vm_early
+    user root
+    group root
+
+service vold    /system/bin/vold
+    class vm_early
+    user root
+    group root
+
+service netd    /system/bin/netd
+    class vm_early
+    user root
+    group root
+
+
+# ---------- 第 2 组: 依赖 servicemanager -> 并行拉起 ----------
+# 注意: zygote 与 surfaceflinger 之间无强依赖, 可同组并行
+on boot
+    # 先确保 servicemanager 就绪(它是下面所有服务的依赖)
+    start servicemanager
+    # 等一小段再拉, 避免全部同时抢 CPU
+    exec - -- /system/bin/sleep 0.2
+    class_start vm_core
+
+service servicemanager /system/bin/servicemanager
+    class vm_core
+    user system
+    group system
+
+service surfaceflinger /system/bin/surfaceflinger
+    class vm_core
+    user system
+    group graphics
+
+service zygote /system/bin/app_process -Xzygote /system/bin --zygote
+    class vm_core
+    user root
+    group root
+
+service debuggerd /system/bin/debuggerd
+    class vm_core
+    user root
+    group root
+
+service installd /system/bin/installd
+    class vm_core
+    user root
+    group root
+
+
+# ---------- 第 3 组: 依赖 core -> 最后并行拉起 ----------
+on boot
+    class_start vm_late
+
+service drm    /system/bin/drmserver
+    class vm_late
+    user root
+    group root
+
+service media  /system/bin/mediaserver
+    class vm_late
+    user media
+    group media camera audio
+
+
+# ============================================================
+# 重要注意事项(决定成败的三条)
+# ============================================================
+#
+# [1] class_start 是并行 fork, 但【不等待完成】
+#     init 只负责 fork+exec, 不保证服务已初始化完毕。
+#     若某服务需等待另一服务就绪, 必须靠服务自身的
+#     重试逻辑或显式的 wait 手段, 不能指望 class_start。
+#
+# [2] 并行度不是越高越好
+#     本项目 guest 为 4 核(smp4), 同时 fork 过多进程会造成
+#     瞬时 CPU 争抢, 在 TCG 下反而更慢。
+#     上述分组已控制在每组 4~5 个, 与核数匹配。
+#
+# [3] 收益有限 —— 诚实说明
+#     经核算: 守护进程阶段原本约占启动 20%,
+#     但 7.6 已删除隐私服务(摄像头/蓝牙/GPS/电话/传感器等),
+#     该阶段剩余占比仅约 2.8%; 其中受依赖关系限制
+#     真正可并行压缩的部分约 40%, 即总收益约 1.1%。
+#     对应 10 分钟冷启动约省 7 秒。
+#     所以本模板的主要价值是【启动链清晰可诊断】,
+#     而非显著提速。

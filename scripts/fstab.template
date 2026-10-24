@@ -1,0 +1,22 @@
+# ============================================================
+# fstab —— 三分区方案模板
+# 放在 ramdisk 里, init 靠它挂载 system / userdata
+#
+# 关键: 已关闭 dm-verity, 因此【不要】写 verify 标志
+#       残留 verify 但校验已关 -> bootloop
+# ============================================================
+
+# <src>                  <mnt_point>  <type>  <mnt_flags>              <fs_mgr_flags>
+/dev/block/vda           /system      ext4    ro,barrier=1             wait
+/dev/block/vdb           /data        ext4    rw,nosuid,nodev,noatime wait
+
+# ---- 说明 ----
+# vda = system 分区 (virtio-blk), 只读挂载
+# vdb = userdata 分区 (virtio-blk), 可读写
+#
+# 注意 fs_mgr_flags 里【没有】verify:
+#   Android 5.0 起 dm-verity 会在挂载时校验 system 哈希树
+#   本项目自建镜像且已确认关闭校验, 故不写该标志
+#
+# 若内核里编了 CONFIG_DM_VERITY 但 fstab 不写 verify, 不会触发校验
+# 反之若写了 verify 而内核没编支持, 挂载失败 -> bootloop

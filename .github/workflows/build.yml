@@ -1,0 +1,86 @@
+name: Build vm-lite
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  # ============================================================
+  # Job 1: 交叉编译 guest 内核 -> QEMU 可引导的 ARM32 裸机镜像
+  #        （本仓库的主产出，能在 QEMU 里真正跑起来）
+  # ============================================================
+  build-baremetal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ARM32 cross compiler + QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi qemu-system-arm
+
+      - name: Build bare-metal image
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/build_baremetal.sh
+
+      - name: Smoke test in QEMU (真·32位 ARM, timeout 20s)
+        run: |
+          # 原生 32 位: qemu-system-arm + cortex-a15
+          timeout 20 qemu-system-arm -M virt -cpu cortex-a15 \
+            -kernel out/vm-lite.elf -nographic -m 256M -smp 1 2>&1 \
+            | tee boot.log || true
+          echo "----- 32-bit boot log -----"
+          cat boot.log
+          # 断言：内核必须跑到 done，否则判失败
+          grep -q "done. halt" boot.log || {
+            echo "[!] 内核未跑完启动链"
+            exit 1
+          }
+          echo "[+] 32 位启动链验证通过"
+
+      - name: Upload bare-metal image
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-lite-baremetal-elf
+          path: |
+            out/vm-lite.elf
+            out/vm-lite.bin
+            boot.log
+          if-no-files-found: error
+
+  # ============================================================
+  # Job 2: Android 宿主 APK（debug 签名，下载即可安装）
+  # ============================================================
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK components
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build Debug APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: '8.2'
+          arguments: assembleDebug --stacktrace
+
+      - name: Upload APK (可直接安装)
+        uses: actions/upload-artifact@v4
+        with:
+          name: vm-lite-APK-可直接安装
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error

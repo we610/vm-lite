@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  /system/etc/permissions/ 特性声明精简模板
+
+  原理: 很多 SystemServer 服务用 hasSystemFeature() 判断是否启动。
+        删掉这里的特性声明 -> hasSystemFeature() 返回 false -> 服务不启动。
+        这是不改 Java 代码就能裁剪服务的手段(比改 SystemServer.java 省事)。
+-->
+<permissions>
+
+    <!-- ===== 保留: 基础必需 ===== -->
+    <feature name="android.hardware.screen" />
+    <feature name="android.hardware.touchscreen" />
+    <feature name="android.hardware.faketouch" />
+
+    <!-- ===== 已移除: 虚拟机里没有或不需要 ===== -->
+    <!--
+    <feature name="android.hardware.bluetooth" />       -> BluetoothManagerService
+    <feature name="android.hardware.bluetooth_le" />    -> BluetoothManagerService
+    <feature name="android.hardware.telephony" />       -> TelephonyRegistry
+    <feature name="android.hardware.nfc" />             -> NfcService
+    <feature name="android.hardware.fingerprint" />     -> FingerprintService
+    <feature name="android.hardware.consumerir" />      -> ConsumerIrService
+    <feature name="android.hardware.usb.host" />        -> UsbService
+    <feature name="android.hardware.usb.accessory" />   -> UsbService
+    <feature name="android.hardware.vibrator" />        -> VibratorService
+    <feature name="android.software.print" />           -> PrintManagerService
+    <feature name="android.hardware.camera" />          -> 已在 7.6 删除
+    <feature name="android.hardware.location" />        -> 已在 7.6 删除
+    <feature name="android.hardware.location.gps" />    -> 已在 7.6 删除
+    <feature name="android.hardware.sensor.accelerometer" /> -> 已在 7.6 删除
+    <feature name="android.hardware.microphone" />      -> 已在 7.6 删除
+    <feature name="android.hardware.wifi" />            -> 可选, 视是否需要网络
+    -->
+
+    <!--
+      注意: android.hardware.screen / touchscreen 必须保留,
+            否则 WindowManagerService 与 InputManagerService 不启动 -> 无界面
+    -->
+
+</permissions>
