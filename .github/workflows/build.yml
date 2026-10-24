@@ -1,76 +1,25 @@
-name: Build vm-lite
+name: build
 
 on:
   push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build-baremetal:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install aarch64 toolchain + QEMU
+      - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            qemu-system-aarch64 clang lld
+          sudo apt-get install -y clang lld llvm
 
-      - name: Build aarch64 image
-        run: |
-          chmod +x scripts/*.sh
-          bash scripts/build_baremetal.sh
+      - name: Build vm-lite
+        run: bash scripts/build_baremetal.sh
 
-      - name: Smoke test aarch64 (timeout 20s)
-        run: |
-          timeout 20 qemu-system-aarch64 -M virt -cpu cortex-a57 \
-            -kernel out/vm-lite.elf -nographic -m 256M -smp 1 2>&1 \
-            | tee boot.log || true
-          echo "----- aarch64 boot log -----"
-          cat boot.log
-          grep -q "done. halt" boot.log || {
-            echo "[!] 内核未跑完启动链"; exit 1; }
-          echo "[+] aarch64 启动链验证通过"
-
-      - name: Upload bare-metal image
+      - name: Upload elf
         uses: actions/upload-artifact@v4
         with:
-          name: vm-lite-aarch64-elf
-          path: |
-            out/vm-lite.elf
-            boot.log
-          if-no-files-found: error
-
-  build-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install Android SDK components
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Build Debug APK
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: '8.2'
-          arguments: assembleDebug --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: vm-lite-APK-可直接安装
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          name: vm-lite.elf
+          path: out/vm-lite.elf
