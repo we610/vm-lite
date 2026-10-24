@@ -8,11 +8,11 @@ extern void user_entry(void);
 extern unsigned long __ttbr0_l1[];
 extern unsigned long __el0_stack_top;
 
-#define TF_X0   0
-#define TF_X8   8
-#define TF_ESR  32
-#define TF_ELR  33
-#define TF_SPSR 34
+#define TF_X0   5
+#define TF_X8   13
+#define TF_ESR  2
+#define TF_ELR  3
+#define TF_SPSR 0
 #define ESR_EC(esr) (((esr) >> 26) & 0x3f)
 #define EC_SVC_A64  0x15
 #define EC_DABT_LOW 0x24
