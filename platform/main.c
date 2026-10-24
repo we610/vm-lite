@@ -1,6 +1,8 @@
+extern unsigned long __el0_stack_top;
 #include <stdint.h>
 #include "uart.h"
 #include "boot.h"
+#include "usermode.h"
 
 /*
  * vm-lite guest 内核入口（C 世界）
@@ -33,7 +35,7 @@ void kernel_main(void)
 
     uart_puts("\n");
     uart_puts("========================================\n");
-    uart_puts("  vm-lite  guest kernel  (ARM32 bare)   \n");
+    uart_puts("  vm-lite  guest kernel  (AArch64 bare)   \n");
     uart_puts("========================================\n");
     uart_puts("[boot] current stage: ");
     uart_puts(stage_name((int)guest_boot_current()));
@@ -68,4 +70,10 @@ void kernel_main(void)
         uart_puts("[boot] not ready\n");
 
     uart_puts("[boot] done. halt.\n");
+
+    uart_puts("\n===== 用户态测试 =====\n");
+    extern void user_entry(void);
+    enter_usermode((unsigned long)user_entry,
+                   (unsigned long)&__el0_stack_top);
+    for (;;) { }
 }

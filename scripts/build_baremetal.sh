@@ -73,6 +73,10 @@ for pair in "guest_kernel/boot.c:boot.o" \
             "guest_kernel/syscall.c:syscall.o" \
             "hwif/hwif.c:hwif.o" \
             "platform/uart.c:uart.o" \
+            "platform/usermode.c:usermode.o" \
+            "platform/vectors.S:vectors.o" \
+            "platform/user_prog.S:user_prog.o" \
+            "platform/mmu_enable.S:mmu_enable.o" \
             "platform/main.c:main.o"; do
     src="${pair%%:*}"; obj="${pair##*:}"
     printf "    %-26s " "$src"
@@ -84,7 +88,7 @@ for pair in "guest_kernel/boot.c:boot.o" \
 done
 
 printf "    %-26s " "platform/start64.S"
-if $CC $XFLAGS $CFLAGS -c "$START" -o "$OUT/start64.o" 2>"$OUT/.err"; then
+if $CC $XFLAGS $CFLAGS -c "$START" -o "$OUT/start64.o" 2>"$OUT/.err"; then \
     echo "OK"
 else
     echo "FAIL"; head -5 "$OUT/.err"; exit 1
@@ -92,10 +96,9 @@ fi
 
 # ---------- 4. 链接 ----------
 echo "[*] 链接 -> vm-lite.elf"
-$CC $XFLAGS $CFLAGS "${LDFLAGS_EXTRA[@]}" -T "$ROOT/platform/link.ld" \
-    "$OUT/start64.o" "$OUT/main.o" "$OUT/uart.o" \
-    "$OUT/boot.o" "$OUT/broker.o" "$OUT/syscall.o" "$OUT/hwif.o" \
-    -o "$OUT/vm-lite.elf" -nostartfiles -nostdlib -static 2>"$OUT/.err" || {
+$CC $XFLAGS $CFLAGS -T "$ROOT/platform/link.ld" \
+    $(ls "$OUT"/*.o) \
+    -o "$OUT/vm-lite.elf" -nostdlib -nostartfiles -static 2>"$OUT/.err" || {
     echo "[!] 链接失败:"; cat "$OUT/.err"; exit 1
 }
 

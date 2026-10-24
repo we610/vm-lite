@@ -1,0 +1,16 @@
+
+========================================
+  vm-lite  guest kernel  (ARM32 bare)   
+========================================
+[boot] current stage: kernel
+[boot] stage chain OK, final = ready
+  stage[0] = kernel
+  stage[1] = rootfs
+  stage[2] = init
+  stage[3] = daemon
+  stage[4] = sysserver
+  stage[5] = ui
+  stage[6] = ready
+[boot] READY broadcast
+[boot] done. halt.
+qemu-system-aarch64: terminating on signal 15 from pid 3739 (timeout)

@@ -1,10 +1,3 @@
-/*
- * vm-lite guest 内核链接脚本
- *
- * QEMU virt (ARM32) 的 RAM 起始地址是 0x40000000，
- * -kernel 会把镜像加载到这里并从 _start 开始执行。
- */
-
 ENTRY(_start)
 
 SECTIONS
@@ -13,31 +6,29 @@ SECTIONS
 
     .text : {
         *(.text.startup)
+        . = ALIGN(2048);
+        *(.text.vectors)
         *(.text*)
     }
 
-    .rodata : {
-        *(.rodata*)
-    }
-
-    .data : {
-        *(.data*)
-    }
+    .rodata : { *(.rodata*) }
+    .data   : { *(.data*) }
 
     __bss_start = .;
-    .bss : {
-        *(.bss*)
-        *(COMMON)
-    }
+    .bss : { *(.bss*) *(COMMON) }
     __bss_end = .;
 
+    . = ALIGN(4096);
+    __ttbr0_l1 = .;
+    . += 4096;
+
     . = ALIGN(16);
-    . += 0x10000;          /* 预留 64KB 栈 */
+    . += 0x10000;
     __stack_top = .;
 
-    /DISCARD/ : {
-        *(.note*)
-        *(.comment*)
-        *(.ARM.attributes)
-    }
+    . = ALIGN(16);
+    . += 0x8000;
+    __el0_stack_top = .;
+
+    /DISCARD/ : { *(.note*) *(.comment*) *(.ARM.attributes) }
 }

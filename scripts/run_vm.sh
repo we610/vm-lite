@@ -42,12 +42,12 @@ echo "[*] 架构   : aarch64"
 echo "[*] CPU    : cortex-a57 (ARMv8-A)"
 echo "[*] 镜像   : $ELF"
 echo "[*] 机型   : $MACHINE"
-echo "[*] 串口   : PL011 @ 0x09000000 (-nographic)"
+echo "[*] 串口   : PL011 @ 0x09000000 (-nographic -serial mon:stdio -serial mon:stdio)"
 [ -n "$TIMEOUT" ] && echo "[*] 超时   : ${TIMEOUT}s 后自动退出"
 echo "-------------------------------------------------"
 
 CMD=(qemu-system-aarch64 -M "$MACHINE" -cpu cortex-a57 \
-     -kernel "$ELF" -nographic -m 256M -smp 1)
+     -kernel "$ELF" -nographic -serial mon:stdio -serial mon:stdio -m 256M -smp 1)
 
 [ "$GDB" = "1" ] && { echo "[i] 等待 gdb 连接 :1234"; CMD+=(-S -s); }
 
