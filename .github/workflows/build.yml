@@ -6,54 +6,44 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ============================================================
-  # Job 1: 交叉编译 guest 内核 -> QEMU 可引导的 ARM32 裸机镜像
-  #        （本仓库的主产出，能在 QEMU 里真正跑起来）
-  # ============================================================
   build-baremetal:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ARM32 cross compiler + QEMU
+      - name: Install aarch64 toolchain + QEMU
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi qemu-system-arm
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            qemu-system-aarch64 clang lld
 
-      - name: Build bare-metal image
+      - name: Build aarch64 image
         run: |
           chmod +x scripts/*.sh
-          ./scripts/build_baremetal.sh
+          bash scripts/build_baremetal.sh
 
-      - name: Smoke test in QEMU (真·32位 ARM, timeout 20s)
+      - name: Smoke test aarch64 (timeout 20s)
         run: |
-          # 原生 32 位: qemu-system-arm + cortex-a15
-          timeout 20 qemu-system-arm -M virt -cpu cortex-a15 \
+          timeout 20 qemu-system-aarch64 -M virt -cpu cortex-a57 \
             -kernel out/vm-lite.elf -nographic -m 256M -smp 1 2>&1 \
             | tee boot.log || true
-          echo "----- 32-bit boot log -----"
+          echo "----- aarch64 boot log -----"
           cat boot.log
-          # 断言：内核必须跑到 done，否则判失败
           grep -q "done. halt" boot.log || {
-            echo "[!] 内核未跑完启动链"
-            exit 1
-          }
-          echo "[+] 32 位启动链验证通过"
+            echo "[!] 内核未跑完启动链"; exit 1; }
+          echo "[+] aarch64 启动链验证通过"
 
       - name: Upload bare-metal image
         uses: actions/upload-artifact@v4
         with:
-          name: vm-lite-baremetal-elf
+          name: vm-lite-aarch64-elf
           path: |
             out/vm-lite.elf
-            out/vm-lite.bin
             boot.log
           if-no-files-found: error
 
-  # ============================================================
-  # Job 2: Android 宿主 APK（debug 签名，下载即可安装）
-  # ============================================================
   build-apk:
     runs-on: ubuntu-latest
     steps:
@@ -78,7 +68,7 @@ jobs:
           gradle-version: '8.2'
           arguments: assembleDebug --stacktrace
 
-      - name: Upload APK (可直接安装)
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: vm-lite-APK-可直接安装
