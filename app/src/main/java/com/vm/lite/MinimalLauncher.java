@@ -46,7 +46,24 @@ public class MinimalLauncher extends Activity {
         String libDir = getApplicationInfo().nativeLibraryDir;
         File lib = new File(getFilesDir(), "lib"); lib.mkdirs();
         File qemu = new File(libDir, "libqemu.so");
-        File elf  = new File(getFilesDir(), "vm-lite.elf");
+        File elf = new File(getFilesDir(), "vm-lite.elf");
+        // KERNEL_FIX: assets -> filesDir，自动识别内核文件名
+        if (!elf.exists() || elf.length() == 0) {
+            try {
+                String[] tops = getAssets().list("");
+                String kn = null;
+                if (tops != null) for (String f : tops)
+                    if (f.endsWith(".elf") || f.endsWith(".img")) { kn = f; break; }
+                if (kn != null) {
+                    InputStream in = getAssets().open(kn);
+                    FileOutputStream fo = new FileOutputStream(elf);
+                    byte[] b = new byte[65536]; int n;
+                    while ((n = in.read(b)) > 0) fo.write(b, 0, n);
+                    in.close(); fo.close();
+                    elf.setExecutable(true, false);
+                }
+            } catch (Exception e) { }
+        }
 
         stat("[..] qemu: " + qemu.getAbsolutePath(), 2);
         stat("[..] qemu 存在: " + qemu.exists(), 4);
