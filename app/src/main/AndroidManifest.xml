@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.vm.lite">
 
-    <application android:label="VM Lite">
+    <application
+        android:extractNativeLibs="true" android:label="VM Lite">
 
         <!-- 极简 Launcher：注册为 HOME，替代 AOSP Launcher3 -->
         <activity

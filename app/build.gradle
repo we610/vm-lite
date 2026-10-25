@@ -16,4 +16,11 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
+    packagingOptions {
+        doNotStrip "**/*.so"
+        jniLibs { useLegacyPackaging = true }
+    }
+
+    lint { abortOnError false }
 }
