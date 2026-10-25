@@ -1,32 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.vm.lite">
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:extractNativeLibs="true" android:label="VM Lite">
-
-        <!-- 极简 Launcher：注册为 HOME，替代 AOSP Launcher3 -->
+        android:label="VM-Lite"
+        android:allowBackup="true"
+        android:extractNativeLibs="true"
+        android:theme="@android:style/Theme.DeviceDefault">
         <activity
             android:name=".MinimalLauncher"
-            android:label="VM Desktop"
-            android:exported="true">
+            android:exported="true"
+            android:label="VM-Lite">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- 设置入口，由 MinimalLauncher 启动 -->
-        <activity
-            android:name=".SettingsActivity"
-            android:label="设置" />
-
-        <!--
-          浏览器不再自研：改用系统自带浏览器 com.android.browser，
-          由 MinimalLauncher 通过包名启动，故此处不再声明 BrowserActivity，
-          本应用亦不再需要 INTERNET 权限。
-        -->
-
     </application>
 </manifest>
