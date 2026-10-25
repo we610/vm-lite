@@ -9,17 +9,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: android-actions/setup-android@v3
-      - name: Gradle
+
+      - name: Locate Android SDK
+        run: |
+          if [ -d /usr/local/lib/android/sdk ]; then
+            echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+            echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+            ls /usr/local/lib/android/sdk
+          else
+            echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+            mkdir -p $HOME/android-sdk/cmdline-tools
+            curl -sL -o /tmp/cmd.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            unzip -q /tmp/cmd.zip -d /tmp/cmd
+            mv /tmp/cmd/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+            yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+          fi
+
+      - name: Install Gradle 8.5
         run: |
           curl -sL -o /tmp/g.zip https://services.gradle.org/distributions/gradle-8.5-bin.zip
           unzip -q /tmp/g.zip -d /opt
+
+      - name: Build APK
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+        run: |
           export PATH=/opt/gradle-8.5/bin:$PATH
-          gradle assembleDebug --no-daemon 2>&1 | tail -40
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tail -50
+
       - uses: actions/upload-artifact@v4
         with:
           name: vm-lite-apk
