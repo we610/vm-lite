@@ -1,7 +1,8 @@
-name: build
+name: Build vm-lite
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -10,16 +11,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install toolchain
+      - name: 装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: 用 runner 预装 SDK 环境
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang lld llvm
+          sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-34" "build-tools;34.0.0" || true
+          yes | sdkmanager --licenses --sdk_root=$ANDROID_HOME || true
 
-      - name: Build vm-lite
-        run: bash scripts/build_baremetal.sh
+      - name: gradlew 执行权
+        run: chmod +x ./gradlew
 
-      - name: Upload elf
+      - name: 编 Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: 传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: vm-lite.elf
-          path: out/vm-lite.elf
+          name: vm-lite-apk
+          path: app/build/outputs/apk/debug/*.apk
